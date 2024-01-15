@@ -2,16 +2,17 @@ from ultralytics import YOLO
 import cv2
 import cvzone
 import math
-import RoyalRushFunction
+import RoyalRushFunction  # Make sure this is available
 
-
-
-
-cap = cv2.VideoCapture(1)
+# Initialize video capture
+cap = cv2.VideoCapture(0)
 cap.set(3, 1280)
 cap.set(4, 720)
+
+# Load YOLO model
 model = YOLO('code\last.pt')
 
+# Class names for the playing cards
 classnames = ['10C', '10D', '10H', '10S',
               '2C', '2D', '2H', '2S',
               '3C', '3D', '3H', '3S',
@@ -26,33 +27,52 @@ classnames = ['10C', '10D', '10H', '10S',
               'KC', 'KD', 'KH', 'KS',                                           
               'QC', 'QD', 'QH', 'QS']
 
-
-
 while True:
-      success, img = cap.read()
-      results = model(img , stream=True)
-      hand = []
-      for r in results:
+    # Capture frame from webcam
+    success, img = cap.read()
+
+    # Perform object detection using YOLO
+    results = model(img, stream=True)
+
+    # Initialize list to store recognized playing cards
+    hand = []
+
+    for r in results:
         boxes = r.boxes
-        for box in boxes:                                         
-            x1,y1,x2,y2 = box.xyxy[0]
-            x1,y1,x2,y2 = int(x1), int(y1), int(x2), int(y2)
+        for box in boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
             w, h = x2 - x1, y2 - y1
+
+            # Draw rectangle around the detected card
             cvzone.cornerRect(img, (x1, y1, w, h))
-            conf = math.ceil((box.conf[0] * 100)) / 100
+
+            # Display class name and confidence level
+            conf = round(float(box.conf[0]), 2)
             cls = int(box.cls[0])
             cvzone.putTextRect(img, f'{classnames[cls]} {conf}', (max(0, x1), max(35, y1)), scale=1, thickness=1)
-            if conf > 0.8:
+
+            # If confidence is above 0.5, add the card to the hand
+            if conf > 0.5:
                 hand.append(classnames[cls])
 
-        print(hand)
-        hand = list(set(hand))
-        print(hand)
-        if len(hand) == 5:
-            results = RoyalRushFunction.find_poker_hand(hand)
-            print(results)
-            cvzone.putTextRect(img, f'Your Hand: {results}',(300,75),scale=3, thickness= 5)
+    # Remove duplicate cards from the hand
+    hand = list(set(hand))
 
+    # If five cards are detected, determine the poker hand
+    if len(hand) == 5:
+        poker_hand_results = RoyalRushFunction.find_poker_hand(hand)
+        poker_hand = RoyalRushFunction.POKER_HAND_RANKS[poker_hand_results]
 
-        cv2.imshow("Image", img)
-        cv2.waitKey(1)
+        # Display the determined poker hand
+        cvzone.putTextRect(img, f'Your Hand: {poker_hand}', (300, 75), scale=3, thickness=5)
+
+    # Display the processed image
+    cv2.imshow("Image", img)
+
+    # Break the loop if 'q' is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release video capture and close all windows
+cap.release()
+cv2.destroyAllWindows()
